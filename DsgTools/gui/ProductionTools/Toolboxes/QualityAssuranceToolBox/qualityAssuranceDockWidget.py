@@ -578,155 +578,157 @@ class QualityAssuranceDockWidget(QDockWidget, FORM_CLASS):
         """
         workflow = self.currentWorkflow()
         self.prepareOutputTreeNodes()
-        if workflow is not None:
-            self.setGuiState(True)
-            # these methods are defined locally as they are not supposed to be
-            # outside thread execution setup and should all be handled from
-            # within this method - at runtime
-            def refreshFeedback():
-                # refresh feedback track to not carry "bias" to next execution
-                workflow.feedback.progressChanged.disconnect(self.setProgress)
-                del workflow.feedback
-                workflow.feedback = QgsProcessingFeedback()
-                workflow.feedback.progressChanged.connect(self.setProgress)
-            def intWrapper(pb, v):
-                pb.setValue(int(v))
-            def statusChangedWrapper(row, model, status):
-                """status: (QgsTask.Enum) status enum"""
-                if row is None:
-                    for row in range(self.tableWidget.rowCount()):
-                        if self.tableWidget.cellWidget(row, 0)\
-                               .text() == model.name():
-                            break
-                code = {
-                    model.Queued : self.INITIAL,
-                    model.OnHold : self.PAUSED,
-                    model.Running : self.RUNNING,
-                    model.Complete : self.FINISHED,
-                    model.Terminated : self.FAILED,
-                    model.WarningFlags : self.FINISHED_WITH_FLAGS,
-                    model.HaltedOnFlags : self.HALTED
-                }[status]
-                if status == model.Terminated and \
-                   model.output["finishStatus"] != "halt":
-                    if self.__workflowCanceled:
-                        code = self.CANCELED
-                    # if workflow was canceled (through the cancel push button),
-                    # workflowFinished signal will not be emited...
-                    postProcessing()
-                    self.__workflowCanceled = False
-                if code != self.INITIAL:
-                    self.setModelStatus(row, code, model.displayName())
-            def begin(model):
-                for row in range(self.tableWidget.rowCount()):
-                    if self.tableWidget.cellWidget(row, 0).text() != model.name():
-                        continue
-                    self.__progressFunc = partial(
-                        intWrapper, self.tableWidget.cellWidget(row, 2)
-                    )
-                    model.feedback.progressChanged.connect(self.__progressFunc)
-                    self.__statusFunc = partial(statusChangedWrapper, row, model)
-                    model.statusChanged.connect(self.__statusFunc)
-                    self.setModelStatus(
-                        row, self.RUNNING, model.displayName()
-                    )
-                    return
-            def end(model):
-                for row in range(self.tableWidget.rowCount()):
-                    if self.tableWidget.cellWidget(row, 0).text() != model.name():
-                        continue
-                    model.feedback.progressChanged.disconnect(self.__progressFunc)
-                    model.statusChanged.disconnect(self.__statusFunc)
-                    return
-            def stopOnFlags(model):
-                refreshFeedback()
-                isAfter = False
-                for row in range(self.tableWidget.rowCount()):
-                    if self.tableWidget.cellWidget(row, 0).text() != model.name() and not isAfter:
-                        continue
-                    if isAfter:
-                        code = self.INITIAL
-                        self.tableWidget.cellWidget(row, 2).setValue(0)
-                    else:
-                        model.feedback.progressChanged.disconnect(self.__progressFunc)
-                        model.statusChanged.disconnect(self.__statusFunc)
-                        code = self.HALTED
-                    isAfter = True
-                    self.setModelStatus(
-                        row, code, model.displayName()
-                    )
-                postProcessing()
-            def warningFlags(model):
-                for row in range(self.tableWidget.rowCount()):
-                    if self.tableWidget.cellWidget(row, 0).text() != model.name():
-                        continue
-                    model.feedback.progressChanged.disconnect(self.__progressFunc)
-                    model.statusChanged.disconnect(self.__statusFunc)
-                    self.setModelStatus(
-                        row, self.FINISHED_WITH_FLAGS, model.displayName()
-                    )
-                    return
-            def postProcessing():
-                """
-                When workflow finishes, its signals are kept connected and that
-                might cause missbehaviour on next executions.
-                """
-                workflow.modelStarted.disconnect(begin)
-                workflow.modelFinished.disconnect(end)
-                workflow.haltedOnFlags.disconnect(stopOnFlags)
-                workflow.modelFinishedWithFlags.disconnect(warningFlags)
-                workflow.workflowFinished.disconnect(postProcessing)
-                refreshFeedback()
-                self.setGuiState(False)
-                self.pausePushButton.show()
-                self.continuePushButton.hide()
-                for m in workflow.validModels().values():
-                    if m.hasFlags():
-                        msg = self.tr("workflow {0} finished with flags.")
-                        lvl = Qgis.Warning
-                        break
-                else:
-                    msg = self.tr("workflow {0} finished.")
-                    lvl = Qgis.Success
-                self.iface.messageBar().pushMessage(
-                    self.tr("DSGTools Q&A Toolbox"),
-                    msg.format(workflow.displayName()),
-                    lvl,
-                    duration=3
-                )
-            workflow.modelStarted.connect(begin)
-            workflow.modelFinished.connect(end)
-            workflow.haltedOnFlags.connect(stopOnFlags)
-            workflow.modelFinishedWithFlags.connect(warningFlags)
-            workflow.workflowFinished.connect(postProcessing)
-            sender = self.sender()
-            if sender is None or sender.objectName() == "runPushButton":
-                if workflow.lastModelName() is not None:
-                    if QMessageBox.question(
-                        self,
-                        self.tr("This workspace has already started. Would you like to run this workspace from the first step?"),
-                        QMessageBox.Ok|QMessageBox.Cancel
-                    ) == QMessageBox.Cancel:
-                        self.iface.messageBar().pushMessage(
-                            self.tr("DSGTools Q&A Tool Box"),
-                            self.tr("workspace execution canceled by user."),
-                            Qgis.Warning,
-                            duration=3
-                        )
-                        return
-
-                self.preProcessing()
-                workflow.run()
-            else:
-                self.preProcessing(workflow.lastModelName())
-                workflow.run(firstModelName=workflow.lastModelName())
-        else:
+        if workflow is None:
             self.iface.messageBar().pushMessage(
                 self.tr("DSGTools Q&A Tool Box"),
                 self.tr("please select a valid Workflow."),
                 Qgis.Warning,
                 duration=3
             )
+            return
+
+        self.setGuiState(True)
+        # these methods are defined locally as they are not supposed to be
+        # outside thread execution setup and should all be handled from
+        # within this method - at runtime
+        def refreshFeedback():
+            # refresh feedback track to not carry "bias" to next execution
+            workflow.feedback.progressChanged.disconnect(self.setProgress)
+            del workflow.feedback
+            workflow.feedback = QgsProcessingFeedback()
+            workflow.feedback.progressChanged.connect(self.setProgress)
+        def intWrapper(pb, v):
+            pb.setValue(int(v))
+        def statusChangedWrapper(row, model, status):
+            """status: (QgsTask.Enum) status enum"""
+            if row is None:
+                for row in range(self.tableWidget.rowCount()):
+                    if self.tableWidget.cellWidget(row, 0)\
+                            .text() == model.name():
+                        break
+            code = {
+                model.Queued : self.INITIAL,
+                model.OnHold : self.PAUSED,
+                model.Running : self.RUNNING,
+                model.Complete : self.FINISHED,
+                model.Terminated : self.FAILED,
+                model.WarningFlags : self.FINISHED_WITH_FLAGS,
+                model.HaltedOnFlags : self.HALTED
+            }[status]
+            if status == model.Terminated and \
+                model.output["finishStatus"] != "halt":
+                if self.__workflowCanceled:
+                    code = self.CANCELED
+                # if workflow was canceled (through the cancel push button),
+                # workflowFinished signal will not be emited...
+                postProcessing()
+                self.__workflowCanceled = False
+            if code != self.INITIAL:
+                self.setModelStatus(row, code, model.displayName())
+        def begin(model):
+            for row in range(self.tableWidget.rowCount()):
+                if self.tableWidget.cellWidget(row, 0).text() != model.name():
+                    continue
+                self.__progressFunc = partial(
+                    intWrapper, self.tableWidget.cellWidget(row, 2)
+                )
+                model.feedback.progressChanged.connect(self.__progressFunc)
+                self.__statusFunc = partial(statusChangedWrapper, row, model)
+                model.statusChanged.connect(self.__statusFunc)
+                self.setModelStatus(
+                    row, self.RUNNING, model.displayName()
+                )
+                return
+        def end(model):
+            for row in range(self.tableWidget.rowCount()):
+                if self.tableWidget.cellWidget(row, 0).text() != model.name():
+                    continue
+                model.feedback.progressChanged.disconnect(self.__progressFunc)
+                model.statusChanged.disconnect(self.__statusFunc)
+                return
+        def stopOnFlags(model):
+            refreshFeedback()
+            isAfter = False
+            for row in range(self.tableWidget.rowCount()):
+                if self.tableWidget.cellWidget(row, 0).text() != model.name() and not isAfter:
+                    continue
+                if isAfter:
+                    code = self.INITIAL
+                    self.tableWidget.cellWidget(row, 2).setValue(0)
+                else:
+                    model.feedback.progressChanged.disconnect(self.__progressFunc)
+                    model.statusChanged.disconnect(self.__statusFunc)
+                    code = self.HALTED
+                isAfter = True
+                self.setModelStatus(
+                    row, code, model.displayName()
+                )
+            postProcessing()
+        def warningFlags(model):
+            for row in range(self.tableWidget.rowCount()):
+                if self.tableWidget.cellWidget(row, 0).text() != model.name():
+                    continue
+                model.feedback.progressChanged.disconnect(self.__progressFunc)
+                model.statusChanged.disconnect(self.__statusFunc)
+                self.setModelStatus(
+                    row, self.FINISHED_WITH_FLAGS, model.displayName()
+                )
+                return
+        def postProcessing():
+            """
+            When workflow finishes, its signals are kept connected and that
+            might cause missbehaviour on next executions.
+            """
+            workflow.modelStarted.disconnect(begin)
+            workflow.modelFinished.disconnect(end)
+            workflow.haltedOnFlags.disconnect(stopOnFlags)
+            workflow.modelFinishedWithFlags.disconnect(warningFlags)
+            workflow.workflowFinished.disconnect(postProcessing)
+            refreshFeedback()
+            self.setGuiState(False)
+            self.pausePushButton.show()
+            self.continuePushButton.hide()
+            for m in workflow.validModels().values():
+                if m.hasFlags():
+                    msg = self.tr("workflow {0} finished with flags.")
+                    lvl = Qgis.Warning
+                    break
+            else:
+                msg = self.tr("workflow {0} finished.")
+                lvl = Qgis.Success
+            self.iface.messageBar().pushMessage(
+                self.tr("DSGTools Q&A Toolbox"),
+                msg.format(workflow.displayName()),
+                lvl,
+                duration=3
+            )
+        workflow.modelStarted.connect(begin)
+        workflow.modelFinished.connect(end)
+        workflow.haltedOnFlags.connect(stopOnFlags)
+        workflow.modelFinishedWithFlags.connect(warningFlags)
+        workflow.workflowFinished.connect(postProcessing)
+        sender = self.sender()
+        if sender is None or sender.objectName() == "runPushButton":
+            if workflow.lastModelName() is not None and QMessageBox.question(
+                self,
+                self.tr('Confirm Action'),
+                self.tr("This workspace has already started. Would you like to run this workspace from the first step?"),
+                QMessageBox.Ok|QMessageBox.Cancel
+            ) == QMessageBox.Cancel:
+                self.iface.messageBar().pushMessage(
+                    self.tr("DSGTools Q&A Tool Box"),
+                    self.tr("workspace execution canceled by user."),
+                    Qgis.Warning,
+                    duration=3
+                )
+                postProcessing()
+                return
+            self.preProcessing()
+            workflow.run()
+        else:
+            self.preProcessing(workflow.lastModelName())
+            workflow.run(firstModelName=workflow.lastModelName())
+
 
     def prepareOutputTreeNodes(self):
         rootNode = QgsProject.instance().layerTreeRoot()
