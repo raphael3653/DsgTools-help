@@ -13,6 +13,8 @@ Melhorias:
 - Melhoria de desempenho no identificar geometrias inválidas;
 - Melhoria de desempenho no identificar dangles;
 - Melhoria no processo de validação do terreno (removidos os falso-positivos com a moldura);
+- Melhoria de desempenho nos processos de manipulação (clean, topological clean, etc);
+- Adicionada a funcionalidade do clean só modificar as partes das feições que estão dentro da moldura;
 
 ## 4.4.0
 

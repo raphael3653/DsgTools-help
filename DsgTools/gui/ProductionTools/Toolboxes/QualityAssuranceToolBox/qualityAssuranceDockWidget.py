@@ -701,6 +701,20 @@ class QualityAssuranceDockWidget(QDockWidget, FORM_CLASS):
             workflow.workflowFinished.connect(postProcessing)
             sender = self.sender()
             if sender is None or sender.objectName() == "runPushButton":
+                if workflow.lastModelName() is not None:
+                    if QMessageBox.question(
+                        self,
+                        self.tr("This workspace has already started. Would you like to run this workspace from the first step?"),
+                        QMessageBox.Ok|QMessageBox.Cancel
+                    ) == QMessageBox.Cancel:
+                        self.iface.messageBar().pushMessage(
+                            self.tr("DSGTools Q&A Tool Box"),
+                            self.tr("workspace execution canceled by user."),
+                            Qgis.Warning,
+                            duration=3
+                        )
+                        return
+
                 self.preProcessing()
                 workflow.run()
             else:
