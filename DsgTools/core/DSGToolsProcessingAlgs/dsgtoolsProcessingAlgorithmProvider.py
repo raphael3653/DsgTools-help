@@ -356,7 +356,6 @@ class DSGToolsProcessingAlgorithmProvider(QgsProcessingProvider):
             StringCsvToFirstLayerWithElementsAlgorithm(),
             IdentifyDrainageFlowIssues(),
             IdentifyDrainageAngleIssues(),
-            BuildTerrainSlicingFromContoursAlgorihtm(),
             SetRemoveDuplicateNodePropertyOnLayers(),
             IdentifyDrainageLoops(),
             IdentifyDrainageFlowIssuesWithHydrographyElementsAlgorithm(),
