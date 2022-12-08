@@ -20,6 +20,7 @@ Melhorias:
 - Adicionada a funcionalidade de resetar o grid na barra ferramentas de revisão;
 - Adicionado o caso de snap dentro da camada no snap hierárquico. Agora para cada camada de entrada, primeiramente é feito o snap dentro da camada de referência antes de atrair os elementos com hierarquia menor;
 - Barra de atalhos refatorada. Alguns atalhos não utilizados frequentemente foram retirados e foram criadas novas barras para dar a opção do usuário escolher quais ele quer ativar.
+- Rotina de rodar o diagrama de elevação movida para o ferramentas de edição.
 
 Correção de bug:
 - Correção de bug no identificar pontas soltas (o algoritmo estava levantando flag em vértice ocupado dentro do raio de busca);
