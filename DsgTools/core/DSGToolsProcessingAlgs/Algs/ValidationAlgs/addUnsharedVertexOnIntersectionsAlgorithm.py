@@ -19,6 +19,7 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os
 
 from itertools import chain
 from PyQt5.QtCore import QCoreApplication
@@ -241,3 +242,14 @@ class AddUnsharedVertexOnIntersectionsAlgorithm(ValidationAlgorithm):
 
     def createInstance(self):
         return AddUnsharedVertexOnIntersectionsAlgorithm()
+
+    def shortHelpString(self):
+        footer = '''<div align="center">
+                      <img src="'''+ os.path.join(os.path.dirname(os.path.dirname(__file__)),'..', '..', '..',  'icons', 'dsg.png') +'''">
+                      </div>
+                      <div align="right">
+                      <p align="right">
+                      <b>'''+self.tr('Teste')+'''</b>
+                    </div>'''
+        text = 'teste de texto para help'
+        return text + footer
